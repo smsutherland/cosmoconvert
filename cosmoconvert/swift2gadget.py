@@ -10,7 +10,7 @@ class swift2gadget(object):
         with h5py.File(snapshot_file) as f:
             snap_header = f["Header"]
             self.redshift = snap_header.attrs["Redshift"]
-            self.hubble_constant = snap_header.attrs["H0 [internal units]"] / 100
+            self.hubble_constant = f["Cosmology"].attrs["H0 [internal units]"] / 100
 
             # This is an array of 3. We'll only take the first one, since boxes are cubes.
             self.box_size = snap_header.attrs["BoxSize"]
@@ -35,7 +35,7 @@ class swift2gadget(object):
             self._set_swift_units()
 
             header = {"gadget": {}}
-            header["gadget"]["time"] = snap_header["Time"]
+            header["gadget"]["time"] = snap_header.attrs["Time"]
             header["gadget"]["redshift"] = self.redshift
             header["gadget"]["npart"] = np.array(
                 [self.ngas, self.ndm, 0, 0, self.nstar, 0, 0]
@@ -43,7 +43,7 @@ class swift2gadget(object):
             header["gadget"]["box_size"] = (
                 self.box_size * self.swift_length / self.gizmo_length
             )
-            header["gadget"]["omega_matter"] = (
+            header["gadget"]["omega0"] = (
                 f["Cosmology"].attrs["Omega_b"] + f["Cosmology"].attrs["Omega_cdm"]
             )
             header["gadget"]["omega_baryon"] = f["Cosmology"].attrs["Omega_b"]
@@ -55,9 +55,16 @@ class swift2gadget(object):
             header["gadget"]["unit_length"] = self.gizmo_length
             header["gadget"]["unit_mass"] = self.gizmo_mass
             header["gadget"]["unit_time"] = self.gizmo_time
+            header["gadget"]["flag_sfr"] = 1
+            header["gadget"]["flag_cooling"] = 1
+            header["gadget"]["flag_stellarage"] = 1
+            header["gadget"]["flag_metals"] = 11
+            header["gadget"]["flag_feedback"] = 1
+            header["gadget"]["flag_doubleprecision"] = 1
+            header["gadget"]["flag_ic_info"] = 0
 
-            util.io.info('Reading %s' % snapshot_file)
-            util.io.info('Gadget Header:')
+            util.io.info("Reading %s" % snapshot_file)
+            util.io.info("Gadget Header:")
 
             print(header)
 
@@ -65,13 +72,15 @@ class swift2gadget(object):
             length_factor = self.swift_length / self.gizmo_length
             time_factor = self.swift_time / self.gizmo_time
             density_factor = self.swift_density / self.gizmo_density
-            specific_energy_factor =  self.swift_specific_energy / self.gizmo_specific_energy
+            specific_energy_factor = (
+                self.swift_specific_energy / self.gizmo_specific_energy
+            )
             velocity_factor = self.swift_velocity / self.gizmo_velocity
 
             gadget_dict = {
-                "PartType0": {}
-                "PartType1": {}
-                "PartType4": {}
+                "PartType0": {},
+                "PartType1": {},
+                "PartType4": {},
             }
             gas_dict = gadget_dict["PartType0"]
             dark_dict = gadget_dict["PartType1"]
@@ -86,11 +95,11 @@ class swift2gadget(object):
                     ["Coordinates", "Coordinates", length_factor],
                     ["Velocities", "Velocities", velocity_factor],
                     ["SmoothingLength", "SmoothingLengths", length_factor],
-                    ["Density", "Densities", 1 / length_factor**3],
-                    ["InternalEnergy", "InternalEnergies", length_factor**2 / time_factor**2]
+                    ["Density", "Densities", density_factor],
+                    ["InternalEnergy", "InternalEnergies", specific_energy_factor],
                 ]
                 for [gadget_id, swift_id, factor] in factors:
-                    gas_dict[gadget_id] = f["PartType0"][swift_id] * factor
+                    gas_dict[gadget_id] = f["PartType0"][swift_id][:] * factor
 
             # Dark Matter properties
             if self.ndm > 0:
@@ -102,7 +111,7 @@ class swift2gadget(object):
                     ["Velocities", "Velocities", velocity_factor],
                 ]
                 for [gadget_id, swift_id, factor] in factors:
-                    dark_dict[gadget_id] = f["PartType1"][swift_id] * factor
+                    dark_dict[gadget_id] = f["PartType1"][swift_id][:] * factor
 
             # Star properties
             if self.nstar > 0:
@@ -114,12 +123,11 @@ class swift2gadget(object):
                     ["Velocities", "Velocities", velocity_factor],
                 ]
                 for [gadget_id, swift_id, factor] in factors:
-                    star_dict[gadget_id] = f["PartType4"][swift_id] * factor
+                    star_dict[gadget_id] = f["PartType4"][swift_id][:] * factor
 
         snapshot_hdf5 = out or snapshot_file + ".hdf5"
         util.io.info("Writing Gadget file to disk %s" % snapshot_hdf5)
         util.io.write_gadget(snapshot_hdf5, header["gadget"], gadget_dict)
-
 
     def _set_gizmo_units(self):
         self.gizmo_length = 3.085678e21 / self.hubble_constant  # 1 kpc/h
