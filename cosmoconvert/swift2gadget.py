@@ -55,12 +55,13 @@ class swift2gadget(object):
             header["gadget"]["unit_length"] = self.gizmo_length
             header["gadget"]["unit_mass"] = self.gizmo_mass
             header["gadget"]["unit_time"] = self.gizmo_time
-            header["gadget"]["flag_sfr"] = 1
-            header["gadget"]["flag_cooling"] = 1
-            header["gadget"]["flag_stellarage"] = 1
+
+            header["gadget"]["flag_sfr"] = 0
+            header["gadget"]["flag_cooling"] = 0
+            header["gadget"]["flag_stellarage"] = 0
             header["gadget"]["flag_metals"] = 11
-            header["gadget"]["flag_feedback"] = 1
-            header["gadget"]["flag_doubleprecision"] = 1
+            header["gadget"]["flag_feedback"] = 0
+            header["gadget"]["flag_doubleprecision"] = 0
             header["gadget"]["flag_ic_info"] = 0
 
             util.io.info("Reading %s" % snapshot_file)
